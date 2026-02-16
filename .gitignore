@@ -1,0 +1,14 @@
+.DS_Store
+node_modules/
+
+# IDE/Editor directories
+.vscode/
+.cursor/
+.windsurf/
+
+# AI Agent directories (local copies, not the source)
+.agent/
+.agents/
+.claude/
+.codex/
+.gemini/
