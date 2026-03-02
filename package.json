@@ -1,0 +1,15 @@
+{
+  "name": "ably-skills-plugin",
+  "version": "1.0.0",
+  "author": "Ably",
+  "license": "MIT",
+  "description": "Official Ably agent skills for Claude Code",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:sanity": "vitest run test/sanity.test.ts"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}
