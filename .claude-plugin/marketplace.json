@@ -1,8 +1,7 @@
 {
 	"name": "ably-agent-skills",
 	"owner": {
-		"name": "Ably",
-		"email": "support@ably.com"
+		"name": "Ably"
 	},
 	"metadata": {
 		"description": "Official Ably agent skills for Claude Code",
@@ -14,7 +13,7 @@
 	"plugins": [
 		{
 			"name": "ably",
-			"description": "Build realtime apps with Ably — product selection, SDK architecture, authentication, channel design, and common gotchas.",
+			"description": "Gives Claude expert knowledge of Ably's SDK architecture, auth patterns, and product selection - verified against live docs. Prevents common mistakes like deprecated API patterns and client-side key exposure.",
 			"source": "./",
 			"strict": false,
 			"skills": [

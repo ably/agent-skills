@@ -15,7 +15,7 @@ const SKILLS_DIR = join(ROOT_DIR, "skills");
 const CLAUDE_SKILLS_DIR = join(ROOT_DIR, ".claude", "skills");
 const MARKETPLACE_JSON_PATH = join(ROOT_DIR, ".claude-plugin", "marketplace.json");
 
-const MAX_DESCRIPTION_LENGTH = 200;
+const MAX_DESCRIPTION_LENGTH = 1024;
 const MAX_SKILL_BODY_LINES = 500;
 const EXPECTED_SKILLS = ["using-ably"];
 

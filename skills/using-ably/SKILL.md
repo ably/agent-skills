@@ -1,12 +1,15 @@
 ---
 name: using-ably
 description: >
-  ALWAYS use when building or modifying code that uses Ably for realtime messaging,
-  chat, or AI streaming. Covers product selection, SDK patterns, auth, and common
-  production mistakes.
+  ALWAYS use when building realtime features with Ably — messaging, chat,
+  collaboration, presence, or AI token streaming. Covers product and SDK selection
+  (Pub/Sub vs Chat vs Spaces vs LiveObjects), authentication (JWT, token auth,
+  authUrl), channel design, React integration, and critical mistakes like
+  missing Chat attach(), client-side API key exposure, and creating Ably clients
+  inside components. Fetches current docs from ably.com/llms.txt before generating
+  code. Not for general WebSocket or non-Ably realtime libraries.
 license: Apache-2.0
 metadata:
-  version: "1.0.0"
   tags: ably, realtime, pubsub, websocket, messaging, chat, spaces, ai-transport, liveobjects, livesync
 ---
 
@@ -259,6 +262,8 @@ const realtime = new Ably.Realtime({
 
 ### Alternative: Ably Token Requests
 
+JWT is recommended for most use cases, but Ably tokens may be preferred when your capability list is too large for JWT size limits (JWTs must fit within HTTP headers, ~8KB), or when you need to keep capabilities confidential since JWTs can be decoded by clients. The trade-off is that Ably token integration is more involved and doesn't support all JWT functionality like channel-scoped claims and per-connection rate limits.
+
 ```javascript
 // Ably's native token system (requires round-trip to Ably servers from backend)
 app.post('/api/ably-token', (req, res) => {
@@ -286,7 +291,7 @@ Channels separate messages into topics. Get the naming right early — it's hard
 - Use `:` as a hierarchy separator: `chat:room-123`, `orders:user-456`
 - Channel names are case-sensitive
 - Don't create one channel per message — channels are long-lived topics
-- Use [channel namespaces](https://ably.com/docs/channels#namespaces) in the dashboard to apply rules (e.g., persistence, push notifications) to groups of channels
+- Use [rules](https://ably.com/docs/channels#rules) in the dashboard to apply settings (e.g., persistence, push notifications) to groups of channels
 
 **Common patterns:**
 ```
@@ -315,7 +320,7 @@ realtime.connection.on('suspended', () => { /* offline for extended period */ })
 
 - Call `realtime.close()` when done (component unmount, page unload, etc.)
 - Messages published while disconnected are received on reconnection (within the 2-minute recovery window)
-- For AI Transport: use channel `rewind` to hydrate returning clients with recent messages:
+- For AI Transport (client-side): use channel `rewind` to hydrate returning clients with recent messages:
 
 ```javascript
 const channel = realtime.channels.get('conversation:123', {
