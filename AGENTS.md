@@ -35,6 +35,8 @@ Skills use a three-tier loading model to minimize context window usage:
 
 1. **Metadata** (~100 tokens) — `name` and `description` from SKILL.md frontmatter. Always loaded for all installed skills. The `description` is the trigger mechanism.
 2. **Body** (<5k tokens) — The markdown body of SKILL.md. Loaded only when the skill triggers.
+3. **External docs** — Fetched from `ably.com/llms.txt` at runtime. Provides current API references that can't be baked into the skill body.
+
 ## Key Design Principles
 
 1. **Docs-first** — Every skill fetches `https://ably.com/llms.txt` as its primary source. Web search supplements when needed.

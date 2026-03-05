@@ -56,8 +56,8 @@ If no SDK exists:
 After generating code, verify these common-mistake patterns:
 
 - [ ] **API key in client code?** Must use `authUrl`/`authCallback` with JWT or token auth (see Section 3)
-- [ ] **Chat SDK: `attach()` before subscribing?** Without it, messages are silently lost (see Section 7)
-- [ ] **React: Ably client created inside a component?** Must be created once, outside, passed via provider (see Section 8)
+- [ ] **Chat SDK: `attach()` before subscribing?** Subscribe first to avoid messages being silently lost (see Section 7)
+- [ ] **React: Ably client created inside a component without cleanup?** Create once outside and pass via provider, or use useEffect with proper cleanup (see Section 8)
 - [ ] **Server-side: Realtime SDK used when REST would suffice?** Default to `Ably.Rest` for publishing, token generation, history (see Section 2)
 - [ ] **Connection cleanup on unmount/exit?** Call `realtime.close()` (see Section 5)
 - [ ] **Reimplementing built-in behavior?** Don't add custom debounce for typing indicators, custom throttling for cursors, or custom conflict resolution for LiveObjects (see Section 9)
@@ -195,11 +195,10 @@ await realtime.channels.get('events').publish('update', data);
 const rest = new Ably.Rest({ key: '...' }); // stateless HTTP
 await rest.channels.get('events').publish('update', data);
 
-// RIGHT: Realtime on server for persistent connection (e.g., AI streaming)
+// RIGHT: Realtime on server for AI streaming (see AI Transport docs for patterns)
 const channel = realtime.channels.get('conversation:123');
-for await (const token of llmStream) {
-  channel.publish('token', token);
-}
+// Use message-per-response pattern (preferred) — see ably.com/docs/ai-transport
+await channel.publish('response', { text: fullResponse });
 ```
 
 ---
@@ -238,7 +237,7 @@ app.post('/api/ably-auth', (req, res) => {
   const token = jwt.sign(
     {
       'x-ably-capability': JSON.stringify({
-        'chat:*': ['subscribe', 'publish', 'presence'],
+        'room:*': ['subscribe', 'publish', 'presence'],
         [`notifications:${req.user.id}`]: ['subscribe'],
       }),
       'x-ably-clientId': req.user.id,
@@ -270,14 +269,14 @@ app.post('/api/ably-token', (req, res) => {
   const client = new Ably.Rest({ key: process.env.ABLY_API_KEY });
   client.auth.createTokenRequest({
     clientId: req.user.id,
-    capability: { 'chat:*': ['subscribe', 'publish'] },
+    capability: { 'room:*': ['subscribe', 'publish'] },
   }).then(tokenRequest => res.json(tokenRequest));
 });
 ```
 
 ### Rules
 - Server-side: API key is fine (`{ key: 'appId.keyId:keySecret' }`)
-- Client-side: Always use `authUrl` or `authCallback` — never embed the API key
+- Client-side: Always use `authUrl` or `authCallback` — never embed the API key or pass a static `token` directly (it won't auto-refresh on expiry)
 - Set `clientId` if you need presence features — it's required for presence
 - Use capabilities to restrict what channels and operations each client can access
 
@@ -291,7 +290,7 @@ Channels separate messages into topics. Get the naming right early — it's hard
 - Use `:` as a hierarchy separator: `chat:room-123`, `orders:user-456`
 - Channel names are case-sensitive
 - Don't create one channel per message — channels are long-lived topics
-- Use [rules](https://ably.com/docs/channels#rules) in the dashboard to apply settings (e.g., persistence, push notifications) to groups of channels
+- Use [rules](https://ably.com/docs/channels#rules?source=using-ably) in the dashboard to apply settings (e.g., persistence, push notifications) to groups of channels
 
 **Common patterns:**
 ```
@@ -336,7 +335,7 @@ Presence tracks which clients are on a channel. Use it for "who's online" featur
 
 **Rules:**
 - Set `clientId` during auth — it's required for presence
-- Call `channel.presence.enter()` to announce, `channel.presence.leave()` to depart
+- Call `channel.presence.enter()` to join, `channel.presence.update()` to update data, `channel.presence.leave()` to depart
 - Use `channel.presence.get()` for current members, `channel.presence.subscribe()` for changes
 - If a client disconnects ungracefully, Ably removes them after ~15 seconds (not instantly)
 - Don't use presence for high-frequency data (cursor positions, typing coordinates) — use channels instead. Presence is for low-frequency state (online/offline, user status)
@@ -349,17 +348,18 @@ Presence tracks which clients are on a channel. Use it for "who's online" featur
 
 If using `@ably/chat`, these are the most common mistakes:
 
-**Always `attach()` before subscribing.** Subscribing without attaching causes silent message loss — the worst kind of bug.
+**Always subscribe before calling `attach()`.** Attaching without subscribing first causes silent message loss — the worst kind of bug.
 
 ```javascript
 const room = await chat.rooms.get('my-room');
 
-// WRONG: Subscribe without attach — messages silently lost
-room.messages.subscribe((msg) => console.log(msg.text));
-
-// RIGHT: Attach first, then subscribe
+// WRONG: Attach without subscribing first — messages silently lost
 await room.attach();
+room.messages.subscribe((msg) => console.log(msg.text)); // may miss messages during attach
+
+// RIGHT: Subscribe first, then attach
 room.messages.subscribe((msg) => console.log(msg.text));
+await room.attach();
 ```
 
 **Use the actual API.** The Chat SDK does NOT have: threading, read receipts, file attachments, or `room.messages.broadcast()`. Use `room.messages.send()` to send messages.
@@ -383,7 +383,7 @@ Ably provides React hooks for each product:
 | Chat | `@ably/chat/react` | `useMessages`, `useTyping`, `usePresence`, `useRoomReactions` |
 | Spaces | `@ably/spaces/react` | `useMembers`, `useCursors`, `useLocations`, `useLocks` |
 
-**Critical rule: Never create an Ably client inside a component.** This creates a new WebSocket connection on every render.
+**Critical rule: Don't create a new Ably client on every render.** This creates a new WebSocket connection each time — a memory leak.
 
 ```javascript
 // WRONG: Creates new connection every render — memory leak
@@ -403,6 +403,17 @@ function App() {
       </ChannelProvider>
     </AblyProvider>
   );
+}
+
+// ALSO RIGHT: Create in useEffect with proper cleanup
+function App() {
+  const [client, setClient] = useState(null);
+  useEffect(() => {
+    const ably = new Ably.Realtime({ authUrl: '/api/ably-auth' });
+    setClient(ably);
+    return () => ably.close();
+  }, []);
+  // ...
 }
 ```
 
@@ -429,7 +440,7 @@ LiveSync connects your database to frontends: Database → ADBC Connector → Ab
 
 **Key constraints:** PostgreSQL requires logical replication (14+, WAL level change needs restart). MongoDB requires a replica set (no standalone). The Database Connector handles channel mapping automatically once you configure an ingress rule.
 
-**Always fetch current LiveSync docs** from [ably.com/docs/livesync](https://ably.com/docs/livesync) — database permissions and connector configuration change across versions.
+**Always fetch current LiveSync docs** from [ably.com/docs/livesync](https://ably.com/docs/livesync?source=using-ably) — database permissions and connector configuration change across versions.
 
 ---
 
@@ -445,7 +456,7 @@ Before going to production, verify:
 - [ ] **Message size** — messages are limited to 64KB by default; if you're hitting this, split payloads or reconsider message design
 - [ ] **Idempotent publishing** — set unique message IDs when exactly-once delivery matters
 - [ ] **`echoMessages: false`** — set this if publishers don't need to receive their own messages (saves bandwidth and cost)
-- [ ] **Rate limits** — Ably enforces rate limits (e.g., 50 messages/second per channel, 200 channels per connection). If you're hitting them, check your publish frequency and channel fan-out. Read the [limits documentation](https://ably.com/docs/general/limits)
+- [ ] **Rate limits** — Ably enforces rate limits (e.g., 50 messages/second per channel, 200 channels per connection). If you're hitting them, check your publish frequency and channel fan-out. Read the [limits documentation](https://ably.com/docs/general/limits?source=using-ably)
 
 ### Error Handling
 
@@ -455,10 +466,10 @@ Ably error codes can be broad (e.g., 40000, 50000) — always read the error **m
 
 ## 12. Quick Reference
 
-**Product docs:** [Pub/Sub](https://ably.com/docs/pubsub) | [Chat](https://ably.com/docs/chat) | [Spaces](https://ably.com/docs/spaces) | [LiveObjects](https://ably.com/docs/liveobjects) | [LiveSync](https://ably.com/docs/livesync) | [AI Transport](https://ably.com/docs/ai-transport)
+**Product docs:** [Pub/Sub](https://ably.com/docs/pubsub?source=using-ably) | [Chat](https://ably.com/docs/chat?source=using-ably) | [Spaces](https://ably.com/docs/spaces?source=using-ably) | [LiveObjects](https://ably.com/docs/liveobjects?source=using-ably) | [LiveSync](https://ably.com/docs/livesync?source=using-ably) | [AI Transport](https://ably.com/docs/ai-transport?source=using-ably)
 
-**Platform SDKs:** JavaScript, React, Python, Ruby, Java, Kotlin, Swift, .NET, Go, PHP, Flutter — [ably.com/docs/sdks](https://ably.com/docs/sdks)
+**Platform SDKs:** JavaScript, React, Python, Ruby, Java, Kotlin, Swift, .NET, Go, PHP, Flutter — [ably.com/docs/sdks](https://ably.com/docs/sdks?source=using-ably)
 
 **Ably CLI:** Install with `npm install -g @ably/cli` to publish test messages, subscribe to channels, and verify setup. Run `ably --help` to discover commands.
 
-For API references, start at [ably.com/docs](https://ably.com/docs).
+For API references, start at [ably.com/docs](https://ably.com/docs?source=using-ably).

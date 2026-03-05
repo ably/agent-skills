@@ -8,6 +8,7 @@ import {
 	rmSync,
 } from "node:fs";
 import { join } from "node:path";
+import matter from "gray-matter";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const ROOT_DIR = join(__dirname, "..");
@@ -35,53 +36,6 @@ function discoverSkillNames(): string[] {
 		.filter((entry) => entry.isDirectory())
 		.filter((entry) => existsSync(join(SKILLS_DIR, entry.name, "SKILL.md")))
 		.map((entry) => entry.name);
-}
-
-/**
- * Parse YAML frontmatter from a SKILL.md file.
- * Returns { frontmatter: Record<string, string>, body: string }.
- */
-function parseFrontmatter(filePath: string): {
-	frontmatter: Record<string, string>;
-	body: string;
-} {
-	const content = readFileSync(filePath, "utf-8");
-	const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-
-	if (!match) {
-		return { frontmatter: {}, body: content };
-	}
-
-	const raw = match[1];
-	const body = match[2];
-	const frontmatter: Record<string, string> = {};
-
-	// Simple YAML parser for single-value and folded (>) fields
-	let currentKey = "";
-	let currentValue = "";
-
-	for (const line of raw.split("\n")) {
-		const keyMatch = line.match(/^(\w[\w-]*):\s*(.*)$/);
-		if (keyMatch) {
-			// Save previous key if it exists
-			if (currentKey) {
-				frontmatter[currentKey] = currentValue.trim();
-			}
-			currentKey = keyMatch[1];
-			const value = keyMatch[2];
-			currentValue = value === ">" ? "" : value;
-		} else if (currentKey && line.startsWith("  ")) {
-			// Continuation line for folded scalar
-			currentValue += " " + line.trim();
-		}
-	}
-
-	// Save last key
-	if (currentKey) {
-		frontmatter[currentKey] = currentValue.trim();
-	}
-
-	return { frontmatter, body };
 }
 
 // ---------------------------------------------------------------------------
@@ -141,42 +95,39 @@ describe("skill files", () => {
 			});
 
 			it("should have valid frontmatter with name and description", () => {
-				const { frontmatter } = parseFrontmatter(
-					join(skillDir, "SKILL.md"),
+				const { data: frontmatter } = matter(
+					readFileSync(join(skillDir, "SKILL.md"), "utf-8"),
 				);
 				expect(frontmatter.name).toBeDefined();
 				expect(frontmatter.description).toBeDefined();
 			});
 
 			it("should have name matching directory name", () => {
-				const { frontmatter } = parseFrontmatter(
-					join(skillDir, "SKILL.md"),
+				const { data: frontmatter } = matter(
+					readFileSync(join(skillDir, "SKILL.md"), "utf-8"),
 				);
 				expect(frontmatter.name).toBe(skillName);
 			});
 
 			it("should have name in kebab-case", () => {
-				const { frontmatter } = parseFrontmatter(
-					join(skillDir, "SKILL.md"),
+				const { data: frontmatter } = matter(
+					readFileSync(join(skillDir, "SKILL.md"), "utf-8"),
 				);
 				expect(frontmatter.name).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
 			});
 
 			it(`should have description under ${MAX_DESCRIPTION_LENGTH} characters`, () => {
-				const { frontmatter } = parseFrontmatter(
-					join(skillDir, "SKILL.md"),
+				const { data: frontmatter } = matter(
+					readFileSync(join(skillDir, "SKILL.md"), "utf-8"),
 				);
 				const desc = frontmatter.description || "";
 				expect(desc.length).toBeLessThanOrEqual(MAX_DESCRIPTION_LENGTH);
-				if (desc.length > MAX_DESCRIPTION_LENGTH) {
-					console.log(
-						`${skillName} description is ${desc.length} chars: "${desc}"`,
-					);
-				}
 			});
 
 			it(`should have SKILL.md body under ${MAX_SKILL_BODY_LINES} lines`, () => {
-				const { body } = parseFrontmatter(join(skillDir, "SKILL.md"));
+				const { content: body } = matter(
+					readFileSync(join(skillDir, "SKILL.md"), "utf-8"),
+				);
 				const lineCount = body.split("\n").length;
 				expect(lineCount).toBeLessThanOrEqual(MAX_SKILL_BODY_LINES);
 			});
@@ -242,14 +193,11 @@ describe("skills add sanity check", () => {
 	});
 
 	it("should not contain errors in command output", () => {
-		const hasError =
-			/\bError\b/i.test(commandOutput) && !/✓/.test(commandOutput);
-
-		if (hasError) {
+		if (commandExitCode !== 0) {
 			console.log("Command output:", commandOutput);
 		}
-
 		expect(commandExitCode).toBe(0);
+		expect(commandOutput).not.toMatch(/\bError\b/i);
 	});
 
 	it("should create .claude/skills directory", () => {
