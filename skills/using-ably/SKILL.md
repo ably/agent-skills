@@ -195,10 +195,15 @@ await realtime.channels.get('events').publish('update', data);
 const rest = new Ably.Rest({ key: '...' }); // stateless HTTP
 await rest.channels.get('events').publish('update', data);
 
-// RIGHT: Realtime on server for AI streaming (see AI Transport docs for patterns)
+// RIGHT: Realtime on server for AI streaming (message-per-response pattern)
+// See ably.com/docs/ai-transport/token-streaming/message-per-response?source=using-ably
 const channel = realtime.channels.get('conversation:123');
-// Use message-per-response pattern (preferred) — see ably.com/docs/ai-transport
-await channel.publish('response', { text: fullResponse });
+const { serials: [msgSerial] } = await channel.publish({ name: 'response', data: '' });
+for await (const event of llmStream) {
+  if (event.type === 'token') {
+    channel.appendMessage({ serial: msgSerial, data: event.text });
+  }
+}
 ```
 
 ---
