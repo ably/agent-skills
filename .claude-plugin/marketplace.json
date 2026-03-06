@@ -1,0 +1,24 @@
+{
+	"name": "ably-agent-skills",
+	"owner": {
+		"name": "Ably"
+	},
+	"metadata": {
+		"description": "Official Ably agent skills for Claude Code",
+		"version": "1.0.0",
+		"homepage": "https://ably.com",
+		"repository": "https://github.com/ably/agent-skills",
+		"license": "Apache-2.0"
+	},
+	"plugins": [
+		{
+			"name": "ably",
+			"description": "Gives Claude expert knowledge of Ably's SDK architecture, auth patterns, and product selection - verified against live docs. Prevents common mistakes like deprecated API patterns and client-side key exposure.",
+			"source": "./",
+			"strict": false,
+			"skills": [
+				"./skills/using-ably"
+			]
+		}
+	]
+}

@@ -1,0 +1,76 @@
+name: Ably Skills CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    name: Validate Plugin Structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify plugin manifest exists
+        run: test -f .claude-plugin/marketplace.json
+
+      - name: Verify plugin manifest is valid JSON
+        run: python3 -c "import json; json.load(open('.claude-plugin/marketplace.json'))"
+
+      - name: Verify required root files exist
+        run: |
+          test -f AGENTS.md
+          test -f CLAUDE.md
+          test -f README.md
+          test -f LICENSE
+
+      - name: Verify root CLAUDE.md is a symlink to AGENTS.md
+        run: |
+          if [ ! -L CLAUDE.md ]; then
+            echo "Error: CLAUDE.md is not a symlink"
+            exit 1
+          fi
+          target=$(readlink CLAUDE.md)
+          if [ "$target" != "AGENTS.md" ]; then
+            echo "Error: CLAUDE.md points to '$target', expected 'AGENTS.md'"
+            exit 1
+          fi
+
+      - name: Verify all skills have SKILL.md
+        run: |
+          for skill_dir in skills/*/; do
+            skill_name=$(basename "$skill_dir")
+            test -f "$skill_dir/SKILL.md" || { echo "Missing SKILL.md in $skill_name"; exit 1; }
+            echo "  ✓ $skill_name OK"
+          done
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run sanity tests
+        run: npm run test:sanity
+
+  all-checks-completed:
+    name: all-checks-completed
+    runs-on: ubuntu-latest
+    needs: [validate, test]
+    if: always()
+    steps:
+      - name: Verify all jobs passed
+        run: |
+          if [ "${{ needs.validate.result }}" != "success" ] || [ "${{ needs.test.result }}" != "success" ]; then
+            echo "One or more jobs failed"
+            exit 1
+          fi

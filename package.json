@@ -1,0 +1,16 @@
+{
+  "name": "ably-agent-skills",
+  "version": "1.0.0",
+  "author": "Ably",
+  "license": "Apache-2.0",
+  "description": "Official Ably agent skills for Claude Code",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:sanity": "vitest run test/sanity.test.ts"
+  },
+  "devDependencies": {
+    "gray-matter": "^4.0.3",
+    "vitest": "^3.0.0"
+  }
+}
