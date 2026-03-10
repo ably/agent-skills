@@ -28,14 +28,14 @@ Messages not arriving
 ├── Was anything published?          → check channel history (2 min only without persistence)
 ├── Can I see messages live?         → subscribe to the channel
 ├── Test round-trip                  → subscribe in background, publish from main terminal
-└── Check channel lifecycle          → subscribe to channel lifecycle logs
+└── Check channel lifecycle          → subscribe to channel lifecycle logs, or inspect the channel in the dashboard
 
 Presence not working
 ├── Who is actually present?         → subscribe to presence on the channel
 ├── Simulate a client joining        → enter presence with custom client-id and data
 ├── Check presence member count      → get channel occupancy
 │   (stale members? ungraceful disconnects take ~15s to be removed)
-└── Watch all presence events        → subscribe to logs filtered by channel.presence
+└── Watch all presence events        → subscribe to logs filtered by channel.presence, or inspect the channel in the dashboard
 
 Connection problems
 ├── Can I connect at all?            → test connection (try ws and xhr separately)
@@ -46,7 +46,9 @@ Connection problems
 Auth errors
 ├── Is the API key valid?            → test connection with the specific key
 ├── What capabilities does key have? → list auth keys
-├── Can I issue a token?             → issue an ably-token or jwt-token
+├── Using tokens (JWT or Ably)?      → issue a test token via CLI to verify the key can create valid tokens
+│   (CLI token issuance tests the key, not your app's authUrl/authCallback)
+├── Token expired (40142)?           → check TTL and renewal config (authUrl/authCallback)
 └── Look up the error code           → ask the support agent or fetch help.ably.io/error/{code}
 
 Channel state / lifecycle issues
@@ -66,7 +68,9 @@ Integration rules not firing
 ├── Check source type matches        → source can be channel.message, channel.presence,
 │                                      channel.lifecycle, or presence.message
 ├── Check channel filter             → filter pattern must match the channel name
-└── Is the rule enabled?             → check integration status (enabled/disabled)
+├── Is the rule enabled?             → check integration status (enabled/disabled)
+└── Check for delivery errors        → check log history — the log metachannel captures
+                                       errors sending on integrations
 
 Queue issues
 ├── Are queues configured?           → list queues
@@ -78,6 +82,7 @@ Chat room issues (@ably/chat)
 │   (if CLI sees messages but app doesn't → room.attach() likely missing)
 ├── Check room presence              → subscribe to room presence
 ├── Check occupancy                  → get room occupancy
+├── Check underlying channel events  → inspect the room's channels in the dashboard, or subscribe to channel lifecycle logs and look for the room's channel names
 └── Send a test message              → send a message to the room from CLI
 
 Spaces issues (@ably/spaces)
@@ -93,12 +98,13 @@ Spaces issues (@ably/spaces)
 
 - **Channel names are case-sensitive.** Mismatched names between publisher and subscriber is a common bug. List active channels to see what actually exists.
 - **History defaults to 2 minutes.** Without persistence, history only covers Ably's connection recovery window. Check channel rules for `persisted: true`. If not enabled, tell the user and suggest enabling via channel rules or the dashboard.
-- **Presence requires clientId AND capability.** The clientId must be set at connection time (not per-presence-enter), and the key/token must have `presence` capability on the channel. Without both, presence operations silently fail or error.
+- **Presence requires clientId AND capability.** The clientId must be set at connection time (not per-presence-enter). Entering presence requires the `presence` capability; subscribing to presence events requires `subscribe` capability. A client can observe who's present without entering itself. Without the right capability, presence operations fail with 40160.
 - **Capability scope on channel names.** A key with `publish:["chat:*"]` allows publish on channels starting with `chat:` (e.g., `chat:room-1`), but NOT on a channel literally named `chat`. The colon separator and wildcard pattern matter — this is a common cause of 40160 errors.
 - **Token expiry (40142).** Tokens have a TTL. If the client has no `authUrl` or `authCallback` configured for renewal, the token expires; any connection will fail and any other API requests will be refused. Test token issuance via the CLI to verify auth flow works independently of the app.
 - **Presence removal delay.** Ungraceful disconnects take ~15 seconds to be removed by Ably.
 - **Occupancy reveals duplicate subscriptions.** If subscriber count is much higher than expected, check for duplicate subscriptions (React StrictMode, missing useEffect cleanup, multiple Ably client instances).
 - **Token vs key capabilities.** Keys and tokens issued from them can have different capabilities; the rights of a token is the intersection between the rights of the key, and the specific rights specified in the token. Debug 40160 errors by checking both the key capabilities AND the token creation code on the server.
+- **Metachannel logs require `[meta]*` capability.** All `ably logs` commands subscribe to logs metachannels (`[meta]log`, `[meta]channel.lifecycle`, etc.). A key scoped to `*` does not match metachannels — the key needs `[meta]*` or `[*]*` in its capability resource list. The app's root API key has `[*]*` by default. If `ably logs` commands fail with 40160, check the key's capability scope. For deep inspection of a single channel (per-channel stats, regional breakdown, attached integrations), use `ably channels inspect <channel>` to open the dashboard's channel inspector — this uses privileged inspection metachannels (`[meta]inspect:*`) not currently available to the CLI.
 - **Transport fallback.** If WebSocket is blocked, the SDK falls back to XHR streaming. Test both transports separately to confirm which works.
 - **Non-default environments.** If the app uses a sandbox or custom environment, log in with `ably accounts login --endpoint <host>` to target the right cluster.
 - **Error message text > error code.** Ably error codes are broad categories (e.g., 40000 covers many variants). Always read the error message text for the specific cause. Every code has a help page at `help.ably.io/error/{code}`, or use `ably support ask "error {code}"`.
