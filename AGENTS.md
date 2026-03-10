@@ -18,8 +18,11 @@ Cursor, GitHub Copilot, and other compatible agents.
 | Skill | Purpose | Trigger |
 |-------|---------|---------|
 | `using-ably` | Curated knowledge + code generation: product selection, SDK architecture, auth, channel design, live doc verification, post-generation checks | Any Ably-related work (always-on) |
+| `debugging-with-ably-cli` | Diagnostic decision trees, CLI capabilities, connection/channel state reference, environment-specific gotchas | Diagnosing Ably issues — messages not arriving, auth errors, connection failures, presence problems |
 
 **`using-ably`** is the primary skill — it provides the domain knowledge agents get wrong (product selection, JWT auth, Chat attach lifecycle, React client creation, etc.) and enforces fetching current docs from `ably.com/llms.txt` before generating code, with a post-generation checklist to catch common mistakes.
+
+**`debugging-with-ably-cli`** is the diagnostic skill — it teaches agents what's possible with the Ably CLI and when to use each capability for observing, simulating, and managing Ably resources during debugging.
 
 ## Skill Structure
 
@@ -27,6 +30,8 @@ Cursor, GitHub Copilot, and other compatible agents.
 skills/
   {skill-name}/
     SKILL.md              # Skill definition (frontmatter + instructions)
+    AGENTS.md             # Optional: agent guidance for maintaining this skill
+    MAINTAINING.md        # Optional: detailed maintenance guide (referenced from AGENTS.md)
 ```
 
 ## Progressive Disclosure
@@ -39,7 +44,7 @@ Skills use a three-tier loading model to minimize context window usage:
 
 ## Key Design Principles
 
-1. **Docs-first** — Every skill fetches `https://ably.com/llms.txt` as its primary source. Web search supplements when needed.
+1. **Docs-first** — Code-generation skills fetch `https://ably.com/llms.txt` as their primary source. Web search supplements when needed. Non-code-generation skills (e.g., debugging) may rely on other sources like CLI help and error reference pages.
 2. **Product-first rule** — Never build custom infrastructure when an Ably product handles it natively.
 3. **Focus on what LLMs can't know** — Skills provide channel layout patterns, common gotchas, and design guidance — not product docs the agent can fetch itself.
 4. **Graceful degradation** — If `llms.txt` is unavailable, skills fall back to web search or browsing `ably.com/docs` directly.
