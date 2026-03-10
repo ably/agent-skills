@@ -94,13 +94,13 @@ Spaces issues (@ably/spaces)
 - **Channel names are case-sensitive.** Mismatched names between publisher and subscriber is a common bug. List active channels to see what actually exists.
 - **History defaults to 2 minutes.** Without persistence, history only covers Ably's connection recovery window. Check channel rules for `persisted: true`. If not enabled, tell the user and suggest enabling via channel rules or the dashboard.
 - **Presence requires clientId AND capability.** The clientId must be set at connection time (not per-presence-enter), and the key/token must have `presence` capability on the channel. Without both, presence operations silently fail or error.
-- **Capability scope on channel names.** A key with `publish:["chat:*"]` allows publish on channels starting with `chat:` (e.g., `chat:room-1`), but NOT on a channel literally named `chat`. The colon separator and wildcard pattern matter — this is the most common cause of 40160 errors.
-- **Token expiry (40142).** Tokens have a TTL. If the client has no `authUrl` or `authCallback` configured for renewal, the token expires and the connection fails. Test token issuance via the CLI to verify auth flow works independently of the app.
+- **Capability scope on channel names.** A key with `publish:["chat:*"]` allows publish on channels starting with `chat:` (e.g., `chat:room-1`), but NOT on a channel literally named `chat`. The colon separator and wildcard pattern matter — this is a common cause of 40160 errors.
+- **Token expiry (40142).** Tokens have a TTL. If the client has no `authUrl` or `authCallback` configured for renewal, the token expires; any connection will fail and any other API requests will be refused. Test token issuance via the CLI to verify auth flow works independently of the app.
 - **Presence removal delay.** Ungraceful disconnects take ~15 seconds to be removed by Ably.
 - **Occupancy reveals duplicate subscriptions.** If subscriber count is much higher than expected, check for duplicate subscriptions (React StrictMode, missing useEffect cleanup, multiple Ably client instances).
-- **Token vs key capabilities.** Keys and tokens issued from them can have different capabilities. Debug 40160 errors by checking both the key capabilities AND the token creation code on the server.
+- **Token vs key capabilities.** Keys and tokens issued from them can have different capabilities; the rights of a token is the intersection between the rights of the key, and the specific rights specified in the token. Debug 40160 errors by checking both the key capabilities AND the token creation code on the server.
 - **Transport fallback.** If WebSocket is blocked, the SDK falls back to XHR streaming. Test both transports separately to confirm which works.
-- **Non-default environments.** If the app uses a sandbox or custom environment, pass `--env` to CLI commands to target the right cluster.
+- **Non-default environments.** If the app uses a sandbox or custom environment, log in with `ably accounts login --endpoint <host>` to target the right cluster.
 - **Error message text > error code.** Ably error codes are broad categories (e.g., 40000 covers many variants). Always read the error message text for the specific cause. Every code has a help page at `help.ably.io/error/{code}`, or use `ably support ask "error {code}"`.
 
 ---
@@ -109,8 +109,8 @@ Spaces issues (@ably/spaces)
 
 The CLI needs credentials. Two approaches:
 
-**API key from the project (quick, no login):**
-Every command accepts `--api-key`. Find the key from the project's environment files and pass it directly. If the key is for a production app, note this to the user before using it.
+**Credentials from the project (quick, no login):**
+Set `ABLY_API_KEY` as an environment variable. Find the key from the project's environment files and export it (e.g. `export ABLY_API_KEY=...`). Alternatively, if you have a token (e.g., from the app's auth server), use `ABLY_TOKEN` instead. If the key is for a production app, note this to the user before using it.
 
 **Log in to the CLI (for extended debugging or account-level commands):**
 `ably login` opens a browser for OAuth. Once logged in, use `ably apps list` and `ably apps switch` to target the right app, and `ably auth keys list` to see available keys and their capabilities.
@@ -152,7 +152,7 @@ Query and modify app configuration to diagnose config-related issues.
 
 - **Channel rules (namespaces)**: Check and configure persistence, push, TLS-only, batching, conflation, and channel registry settings.
 - **API keys**: List capabilities, create, revoke, switch active key.
-- **Token issuance**: Issue Ably tokens or JWTs to test auth flows in isolation. Also revoke tokens.
+- **Token issuance**: Issue JWTs (or Ably tokens if the app uses these) to test auth flows in isolation. Also revoke tokens.
 - **Apps**: List, create, switch, configure.
 - **Integrations**: List and inspect integration rules — webhooks, Lambda, Kafka, AMQP, and others. Check source types (channel.message, channel.presence, channel.lifecycle, presence.message), channel filters, and enabled/disabled status.
 - **Queues**: List, create, and delete Ably message queues.
