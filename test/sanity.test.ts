@@ -18,7 +18,8 @@ const MARKETPLACE_JSON_PATH = join(ROOT_DIR, ".claude-plugin", "marketplace.json
 
 const MAX_DESCRIPTION_LENGTH = 1024;
 const MAX_SKILL_BODY_LINES = 500;
-const EXPECTED_SKILLS = ["using-ably"];
+const EXPECTED_SKILLS = ["using-ably", "debugging-with-ably-cli"];
+const SKILLS_REQUIRING_LLMS_TXT = ["using-ably"];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -132,13 +133,15 @@ describe("skill files", () => {
 				expect(lineCount).toBeLessThanOrEqual(MAX_SKILL_BODY_LINES);
 			});
 
-			it("should reference ably.com/llms.txt in SKILL.md", () => {
-				const content = readFileSync(
-					join(skillDir, "SKILL.md"),
-					"utf-8",
-				);
-				expect(content).toContain("ably.com/llms.txt");
-			});
+			if (SKILLS_REQUIRING_LLMS_TXT.includes(skillName)) {
+				it("should reference ably.com/llms.txt in SKILL.md", () => {
+					const content = readFileSync(
+						join(skillDir, "SKILL.md"),
+						"utf-8",
+					);
+					expect(content).toContain("ably.com/llms.txt");
+				});
+			}
 		});
 	}
 });

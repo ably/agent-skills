@@ -9,10 +9,15 @@ Skills work with any [agentskills.io-compatible](https://agentskills.io) coding 
 | Skill | Purpose | Auto-triggers when |
 |-------|---------|-------------------|
 | `using-ably` | Product selection, SDK patterns, auth, channel design, common gotchas | Any Ably-related work |
+| `debugging-with-ably-cli` | Diagnostic decision trees, CLI capabilities, state reference, environment gotchas | Diagnosing Ably issues |
 
 ### `using-ably` — Primary Knowledge Skill
 
 The core skill. Provides curated domain knowledge that agents frequently get wrong: choosing the right product/SDK, JWT vs token auth, modern v2.x patterns, Chat SDK lifecycle (attach before subscribe!), React integration pitfalls, and a production checklist.
+
+### `debugging-with-ably-cli` — CLI Debugging Skill
+
+Teaches agents what the Ably CLI can do and when to use each capability for diagnosing issues. Covers diagnostic reasoning (symptom → CLI approach), key debugging facts, connection/channel state machines, and environment-specific gotchas. Agents discover exact command syntax via `ably --help` at runtime.
 
 ## Installation
 

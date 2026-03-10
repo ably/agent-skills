@@ -13,11 +13,12 @@
 	"plugins": [
 		{
 			"name": "ably",
-			"description": "Gives Claude expert knowledge of Ably's SDK architecture, auth patterns, and product selection - verified against live docs. Prevents common mistakes like deprecated API patterns and client-side key exposure.",
+			"description": "Expert knowledge for building and debugging with Ably — SDK patterns, auth, product selection verified against live docs, and CLI-powered diagnostics for connection, messaging, and presence issues.",
 			"source": "./",
 			"strict": false,
 			"skills": [
-				"./skills/using-ably"
+				"./skills/using-ably",
+				"./skills/debugging-with-ably-cli"
 			]
 		}
 	]
