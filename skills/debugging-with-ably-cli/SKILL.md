@@ -121,7 +121,7 @@ Set `ABLY_API_KEY` as an environment variable. Find the key from the project's e
 **Log in to the CLI (for extended debugging or account-level commands):**
 `ably login` opens a browser for OAuth. Once logged in, use `ably apps list` and `ably apps switch` to target the right app, and `ably auth keys list` to see available keys and their capabilities.
 
-If no credentials are available, ask the user: "I need Ably credentials to debug this. Can you share the API key from your .env, or run `ably login`?"
+If no credentials are available, ask the user to check that their Ably environment variables are set (e.g. `ABLY_API_KEY`) or to run `ably login` to authenticate.
 
 ---
 
