@@ -1,0 +1,137 @@
+name: Release
+
+# Cuts a release when a semver tag is pushed (e.g. `v0.1.0`). The job builds a
+# deterministic source tarball, generates a signed SLSA build-provenance
+# attestation for it via Sigstore (keyless OIDC), and publishes both as a
+# GitHub Release. The Ably CLI downloads the tarball asset and verifies the
+# attestation before installing skills, so consumers can prove the artifact was
+# produced by *this* workflow on *this* repo (not by a stolen key or a
+# compromised collaborator).
+#
+# Triggering:
+#   - push a tag matching `v*.*.*` to cut a release
+#   - `workflow_dispatch` is also supported for manual re-runs / backfills
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release (e.g. v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write # create release, upload assets
+  id-token: write # mint OIDC token for Sigstore signing
+  attestations: write # store attestation against the repo
+
+jobs:
+  validate:
+    name: Validate plugin structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Verify plugin manifest exists and is valid JSON
+        run: |
+          test -f .claude-plugin/marketplace.json
+          python3 -c "import json; json.load(open('.claude-plugin/marketplace.json'))"
+
+      - name: Verify required root files exist
+        run: |
+          test -f AGENTS.md
+          test -f CLAUDE.md
+          test -f README.md
+          test -f LICENSE
+
+      - name: Verify all skills have SKILL.md
+        run: |
+          for skill_dir in skills/*/; do
+            skill_name=$(basename "$skill_dir")
+            test -f "$skill_dir/SKILL.md" || { echo "Missing SKILL.md in $skill_name"; exit 1; }
+          done
+
+  release:
+    name: Build, attest, and publish release
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          if [ -z "$tag" ]; then
+            echo "No tag resolved" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Build deterministic source tarball
+        id: build
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          # Match GitHub's auto-archive layout (`<repo>-<tag>/` as the single
+          # top-level directory) so consumers using `tar --strip 1` work
+          # regardless of which tarball URL they hit. `git archive` only
+          # includes tracked files at the tag — no node_modules, no untracked
+          # local state, deterministic ordering.
+          tarball="${REPO_NAME}-${TAG}.tar.gz"
+          git archive --format=tar.gz --prefix="${REPO_NAME}-${TAG}/" -o "$tarball" "$TAG"
+          digest=$(sha256sum "$tarball" | awk '{print $1}')
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          ls -lh "$tarball"
+          echo "sha256: $digest"
+
+      - name: Generate SLSA build provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.build.outputs.tarball }}
+
+      - name: Publish GitHub Release with attested tarball
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          TARBALL: ${{ steps.build.outputs.tarball }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          # The verification footer is appended whether the release was created
+          # by the workflow (tag push) or already exists (drafted/published from
+          # the UI). Idempotent: a sentinel comment prevents duplicate appends
+          # if this workflow is re-run for the same tag.
+          marker="<!-- ably-release-verify-block -->"
+          footer=$(printf '\n\n---\n\n%s\n**Verifiable artifact**\n\nThis release ships a signed SLSA build-provenance attestation. To verify locally:\n\n```\ngh release download %s --repo %s -p %s\ngh attestation verify %s --repo %s\n```\n\n**SHA-256:** `%s`\n' \
+            "$marker" "$TAG" "$GITHUB_REPOSITORY" "$TARBALL" "$TARBALL" "$GITHUB_REPOSITORY" "$DIGEST")
+
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            # Tag-push path: create the release with auto-generated notes plus
+            # our verification footer, and upload the attested tarball.
+            base_notes=$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f "tag_name=$TAG" --jq '.body')
+            printf '%s%s' "$base_notes" "$footer" \
+              | gh release create "$TAG" --title "$TAG" --notes-file - "$TARBALL"
+          else
+            # UI-created (or otherwise pre-existing) release: upload the
+            # attested tarball and append the verification footer to the
+            # existing body, preserving whatever the human wrote.
+            gh release upload "$TAG" "$TARBALL" --clobber
+            existing_body=$(gh release view "$TAG" --json body --jq '.body')
+            if printf '%s' "$existing_body" | grep -qF "$marker"; then
+              echo "Verification footer already present — skipping append."
+            else
+              printf '%s%s' "$existing_body" "$footer" \
+                | gh release edit "$TAG" --notes-file -
+            fi
+          fi
