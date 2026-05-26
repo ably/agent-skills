@@ -32,7 +32,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
@@ -65,7 +65,7 @@ jobs:
       id-token: write # mint OIDC token for Sigstore signing
       attestations: write # store attestation against the repo
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
@@ -104,7 +104,7 @@ jobs:
           echo "sha256: $digest"
 
       - name: Generate SLSA build provenance attestation
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-path: ${{ steps.build.outputs.tarball }}
 
