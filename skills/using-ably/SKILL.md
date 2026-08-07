@@ -2,12 +2,13 @@
 name: using-ably
 description: >
   ALWAYS use when building realtime features with Ably — messaging, chat,
-  collaboration, presence, or AI token streaming. Covers product and SDK selection
-  (Pub/Sub vs Chat vs Spaces vs LiveObjects), authentication (JWT, token auth,
-  authUrl), channel design, React integration, and critical mistakes like
-  missing Chat attach(), client-side API key exposure, and creating Ably clients
-  inside components. Fetches current docs from ably.com/llms.txt before generating
-  code. Not for general WebSocket or non-Ably realtime libraries.
+  collaboration, presence, or streaming AI agent output. Covers product and SDK
+  selection (Pub/Sub vs Chat vs Spaces vs LiveObjects vs AI Transport),
+  authentication (JWT, token auth, authUrl), channel design, React integration,
+  and critical mistakes like missing Chat attach(), client-side API key exposure,
+  and creating Ably clients inside components. Fetches current docs from
+  ably.com/llms.txt before generating code. Not for general WebSocket or non-Ably
+  realtime libraries.
 license: Apache-2.0
 metadata:
   tags: ably, realtime, pubsub, websocket, messaging, chat, spaces, ai-transport, liveobjects, livesync
@@ -61,6 +62,7 @@ After generating code, verify these common-mistake patterns:
 - [ ] **Server-side: Realtime SDK used when REST would suffice?** Default to `Ably.Rest` for publishing, token generation, history (see Section 2)
 - [ ] **Connection cleanup on unmount/exit?** Call `realtime.close()` (see Section 5)
 - [ ] **Reimplementing built-in behavior?** Don't add custom debounce for typing indicators, custom throttling for cursors, or custom conflict resolution for LiveObjects (see Section 9)
+- [ ] **AI Transport: channel rule enabled?** The namespace needs `mutableMessages`, or streaming fails with error `93002` (see Section 2)
 
 ---
 
@@ -73,7 +75,7 @@ Ably is a multi-product platform, not a single SDK. Choosing the wrong product o
 | Product | Use Case | SDK |
 |---------|----------|-----|
 | **Pub/Sub** | Core messaging: live dashboards, notifications, IoT, event streaming | `ably` (Realtime or REST) |
-| **AI Transport** | Streaming LLM tokens, multi-agent coordination, resumable AI sessions | `ably` (Realtime) |
+| **AI Transport** | Streaming LLM tokens, multi-agent coordination, resumable AI sessions | `@ably/ai-transport` |
 | **LiveObjects** | Shared mutable state: counters, key-value maps, collaborative data | `ably` + LiveObjects plugin |
 | **LiveSync** | Database-to-frontend sync (PostgreSQL change streams) | `@ably-labs/models` + ADBC connector |
 | **Chat** | Chat rooms, typing indicators, reactions, message history, moderation | `@ably/chat` |
@@ -81,14 +83,14 @@ Ably is a multi-product platform, not a single SDK. Choosing the wrong product o
 
 ### SDK Architecture: Two Layers
 
-**Layer 1 — Core SDKs** (used directly for Pub/Sub, AI Transport, LiveObjects, LiveSync):
+**Layer 1 — Core SDKs** (used directly for Pub/Sub, LiveObjects, LiveSync):
 
 | SDK | Use When | Connection |
 |-----|----------|------------|
 | **`Ably.Realtime`** | Client needs to **subscribe** to messages, presence, or state changes | Persistent WebSocket |
 | **`Ably.Rest`** | Server-side **publish only**, token generation, history queries | Stateless HTTP |
 
-These are the foundation. AI Transport, LiveObjects, and LiveSync all use the core Realtime SDK directly — they are patterns and plugins on top of Pub/Sub, not separate SDKs.
+These are the foundation. LiveObjects and LiveSync build on the core Realtime SDK — LiveObjects as a plugin you pass in client options, LiveSync via the Models SDK.
 
 **Layer 2 — Product SDKs** (higher-level abstractions for specific use cases):
 
@@ -96,6 +98,7 @@ These are the foundation. AI Transport, LiveObjects, and LiveSync all use the co
 |-----|---------|
 | **`@ably/chat`** | Rooms, typing indicators, reactions, message history, moderation |
 | **`@ably/spaces`** | Cursors, avatar stacks, member locations, component locking |
+| **`@ably/ai-transport`** | Sessions, runs, and steps for streaming AI agent output; conversation tree with branching and history |
 
 These product SDKs depend on the core Realtime SDK. You pass an `Ably.Realtime` instance when creating them. The underlying Realtime knowledge (auth, channels, presence) still applies.
 
@@ -105,13 +108,15 @@ These product SDKs depend on the core Realtime SDK. You pass an `Ably.Realtime` 
 Q: Is this server-side or client-side?
 ├── Server-side:
 │   ├── Publishing, token generation, history → Use Ably.Rest (stateless HTTP)
-│   └── Need persistent connection (AI token streaming, subscribing) → Use Ably.Realtime
+│   ├── Streaming AI agent output → Use @ably/ai-transport agent session (over Realtime)
+│   └── Need persistent connection (subscribing) → Use Ably.Realtime
 └── Client-side → Use Ably.Realtime, then:
     ├── Building chat? → Use @ably/chat (pass Realtime instance)
     ├── Building collaboration? → Use @ably/spaces (pass Realtime instance)
+    ├── Consuming AI agent output? → Use @ably/ai-transport client session
     ├── Need shared state? → Use LiveObjects plugin with Realtime
     ├── Syncing database? → Use @ably-labs/models with ADBC connector
-    └── Otherwise → Use Ably.Realtime directly (Pub/Sub, AI Transport)
+    └── Otherwise → Use Ably.Realtime directly (Pub/Sub)
 ```
 
 **Server-side rule of thumb:** Default to `Ably.Rest` for server operations. Only use `Ably.Realtime` on the server when you genuinely need a persistent connection — for example, an AI agent streaming tokens to clients, or a backend service that subscribes to events.
@@ -195,16 +200,22 @@ await realtime.channels.get('events').publish('update', data);
 const rest = new Ably.Rest({ key: '...' }); // stateless HTTP
 await rest.channels.get('events').publish('update', data);
 
-// RIGHT: Realtime on server for AI streaming (message-per-response pattern)
-// See ably.com/docs/ai-transport/token-streaming/message-per-response?source=using-ably
-const channel = realtime.channels.get('conversation:123');
+// WRONG: Hand-rolling token streaming onto a raw channel
+const channel = realtime.channels.get('conversations:123');
 const { serials: [msgSerial] } = await channel.publish({ name: 'response', data: '' });
 for await (const event of llmStream) {
-  if (event.type === 'token') {
-    channel.appendMessage({ serial: msgSerial, data: event.text });
-  }
+  channel.appendMessage({ serial: msgSerial, data: event.text }); // reinvents AI Transport
 }
+
+// RIGHT: Use AI Transport — it owns the run/step lifecycle, cancellation, and history
+import { createAgentSession } from '@ably/ai-transport/vercel';
+const session = createAgentSession({ client: realtime, channelName: 'conversations:123' });
+await session.connect();
+// Then open a run and pipe your model stream into a step. Verify the run/step API
+// against ably.com/docs/ai-transport/api/javascript/core/agent-session?source=using-ably
 ```
+
+**AI Transport requires a channel rule.** Every namespace used with AI Transport needs the *Message annotations, updates, deletes, and appends* rule (`mutableMessages: true`) — streaming appends tokens to one message, and appends are rejected with error `93002` without it. This is the single most common AI Transport failure, and it surfaces only on the first append, so the symptom is an assistant message that is empty or holds just the first token. Enable it in the dashboard, or run `ably apps rules create "conversations" --mutable-messages`. See [channel rules](https://ably.com/docs/ai-transport/getting-started/channel-rules?source=using-ably).
 
 ---
 
@@ -303,8 +314,10 @@ chat:room-{roomId}           # Chat rooms
 notifications:user-{userId}  # Per-user notifications
 cursors:doc-{docId}          # Collaborative editing
 events:{eventType}           # Event streaming
-conversation:{sessionId}     # AI Transport sessions
+conversations:{sessionId}    # AI Transport sessions
 ```
+
+Rules and capabilities match the namespace literally up to the first colon, so `conversation` (singular) does not match `conversations:*`. Pick one spelling and use it in the channel name, the channel rule, and the token capability.
 
 ---
 
@@ -324,13 +337,15 @@ realtime.connection.on('suspended', () => { /* offline for extended period */ })
 
 - Call `realtime.close()` when done (component unmount, page unload, etc.)
 - Messages published while disconnected are received on reconnection (within the 2-minute recovery window)
-- For AI Transport (client-side): use channel `rewind` to hydrate returning clients with recent messages:
+- For raw Pub/Sub, use channel `rewind` to give returning clients recent messages on attach:
 
 ```javascript
-const channel = realtime.channels.get('conversation:123', {
+const channel = realtime.channels.get('updates:123', {
   params: { rewind: '2m' }  // Replay last 2 minutes on attach
 });
 ```
+
+- For AI Transport, don't reach for `rewind` — the client session subscribes before it reads history and pages back through `view.loadOlder()`, so history and the live stream join with no gap and no duplicates
 
 ---
 
