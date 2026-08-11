@@ -18,8 +18,8 @@ const MARKETPLACE_JSON_PATH = join(ROOT_DIR, ".claude-plugin", "marketplace.json
 
 const MAX_DESCRIPTION_LENGTH = 1024;
 const MAX_SKILL_BODY_LINES = 500;
-const EXPECTED_SKILLS = ["using-ably", "debugging-with-ably-cli"];
-const SKILLS_REQUIRING_LLMS_TXT = ["using-ably"];
+const EXPECTED_SKILLS = ["using-ably", "debugging-with-ably-cli", "using-ably-with-temporal"];
+const SKILLS_REQUIRING_LLMS_TXT = ["using-ably", "using-ably-with-temporal"];
 
 // ---------------------------------------------------------------------------
 // Helpers
