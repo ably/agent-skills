@@ -10,6 +10,7 @@ Skills work with any [agentskills.io-compatible](https://agentskills.io) coding 
 |-------|---------|-------------------|
 | `using-ably` | Product selection, SDK patterns, auth, channel design, common gotchas | Any Ably-related work |
 | `debugging-with-ably-cli` | Diagnostic decision trees, CLI capabilities, state reference, environment gotchas | Diagnosing Ably issues |
+| `using-ably-with-temporal` | AI Transport on Temporal: workflow/activity split, retry idempotency, failure paths, migration | Building or converting a Temporal AI agent |
 
 ### `using-ably` — Primary Knowledge Skill
 
@@ -18,6 +19,10 @@ The core skill. Provides curated domain knowledge that agents frequently get wro
 ### `debugging-with-ably-cli` — CLI Debugging Skill
 
 Teaches agents what the Ably CLI can do and when to use each capability for diagnosing issues. Covers diagnostic reasoning (symptom → CLI approach), key debugging facts, connection/channel state machines, and environment-specific gotchas. Agents discover exact command syntax via `ably --help` at runtime.
+
+### `using-ably-with-temporal` — Durable Execution Skill
+
+For AI agents whose server side runs inside a Temporal workflow. Covers the composition rules and the failure modes that look like application bugs: the workflow/activity/route/client split, pinning run identity to the Temporal `workflowId` so retries stay idempotent, detaching rather than ending a session on a retryable path, and closing a run exactly once when retries are exhausted. Includes a migration guide for converting an existing Temporal app, which no documentation currently covers. Carries no run/step signatures — agents verify those against the API reference for the version they have installed.
 
 ## Installation
 

@@ -19,10 +19,13 @@ Cursor, GitHub Copilot, and other compatible agents.
 |-------|---------|---------|
 | `using-ably` | Curated knowledge + code generation: product selection, SDK architecture, auth, channel design, live doc verification, post-generation checks | Any Ably-related work (always-on) |
 | `debugging-with-ably-cli` | Diagnostic decision trees, CLI capabilities, connection/channel state reference, environment-specific gotchas | Diagnosing Ably issues — messages not arriving, auth errors, connection failures, presence problems |
+| `using-ably-with-temporal` | AI Transport + Temporal composition: workflow/activity split, run identity, retry idempotency, failure paths, migration of existing apps | Building or converting a Temporal app that streams AI agent output over Ably |
 
 **`using-ably`** is the primary skill — it provides the domain knowledge agents get wrong (product selection, JWT auth, Chat attach lifecycle, React client creation, etc.) and enforces fetching current docs from `ably.com/llms.txt` before generating code, with a post-generation checklist to catch common mistakes.
 
 **`debugging-with-ably-cli`** is the diagnostic skill — it teaches agents what's possible with the Ably CLI and when to use each capability for observing, simulating, and managing Ably resources during debugging.
+
+**`using-ably-with-temporal`** is the durable-execution skill — it covers the seam between AI Transport and Temporal, where the failure modes live: which layer owns what, why run identity is pinned to the Temporal `workflowId`, why an activity detaches rather than ends its session, and how to close a run exactly once when retries are exhausted. It carries no run/step signatures by design, directing agents to verify those against the API reference for the installed version.
 
 ## Skill Structure
 
