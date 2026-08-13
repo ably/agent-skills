@@ -296,6 +296,19 @@ app.post('/api/ably-token', (req, res) => {
 - Set `clientId` if you need presence features — it's required for presence
 - Use capabilities to restrict what channels and operations each client can access
 
+### Getting a key into a project
+
+No key in the project yet? Take one from a logged-in Ably CLI rather than asking the user to find and paste it:
+
+```bash
+ably auth keys get "APP_ID.KEY_ID" --json | head -1 | jq -r .key.value   # a specific key
+ably auth keys list --app APP_ID --json                                  # to choose one
+```
+
+`--json` is **JSON Lines** (a `result` line, then a `status` line), so read the first line. The key is at `.key.value` for `keys get`, `.keys[].key` for `keys list`.
+
+Add `.env` to `.gitignore` *before* writing `ABLY_API_KEY=appId.keyId:keySecret` into it, then load it with the platform's env loader (`dotenv`, `python-dotenv`). Never inline a key in source or commit one — keys don't expire, so a leak lasts until the key is revoked. Prefer the narrowest key that does the job; `keys list --json` shows each key's `capability`.
+
 ---
 
 ## 4. Channel Design
