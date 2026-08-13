@@ -187,6 +187,8 @@ import { ChatClient } from '@ably/chat';
 const options: Ably.Types.ClientOptions = { ... }; // unnecessary
 ```
 
+The `key:` form above is the getting-started shape — see Authentication (§3) before it reaches a client you ship.
+
 If you hit ESM/CommonJS import errors, check that your `tsconfig.json` has `"moduleResolution": "bundler"` or `"node16"`, and that you're importing from `'ably'` (not subpaths). Don't try multiple import strategies — check the [SDK README](https://github.com/ably/ably-js) for your environment.
 
 **Server-side: Default to REST SDK.** Only use `Ably.Realtime` on the server when you need a persistent connection.
@@ -296,18 +298,18 @@ app.post('/api/ably-token', (req, res) => {
 - Set `clientId` if you need presence features — it's required for presence
 - Use capabilities to restrict what channels and operations each client can access
 
-### Getting a key into a project
+### Getting started: an API key in `.env`
 
-No key in the project yet? Take one from a logged-in Ably CLI rather than asking the user to find and paste it:
+The fast path to a first working message, and what Ably's onboarding sets up. Take the key from a logged-in Ably CLI rather than asking the user to find and paste it:
 
 ```bash
 ably auth keys get "APP_ID.KEY_ID" --json | head -1 | jq -r .key.value   # a specific key
 ably auth keys list --app APP_ID --json                                  # to choose one
 ```
 
-`--json` is **JSON Lines** (a `result` line, then a `status` line), so read the first line. The key is at `.key.value` for `keys get`, `.keys[].key` for `keys list`.
+`--json` is **JSON Lines** (a `result` line, then a `status` line), so read the first line. The key is at `.key.value` for `keys get`, `.keys[].key` for `keys list`. Add `.env` to `.gitignore` *before* writing `ABLY_API_KEY=appId.keyId:keySecret` into it, then load it with the platform's env loader (`dotenv`, `python-dotenv`). Prefer the narrowest key that does the job — `keys list --json` shows each key's `capability`.
 
-Add `.env` to `.gitignore` *before* writing `ABLY_API_KEY=appId.keyId:keySecret` into it, then load it with the platform's env loader (`dotenv`, `python-dotenv`). Never inline a key in source or commit one — keys don't expire, so a leak lasts until the key is revoked. Prefer the narrowest key that does the job; `keys list --json` shows each key's `capability`.
+**This is a getting-started pattern, not a production one.** It is fine while someone is proving a connection works — including from a browser or mobile app, which is what Ably's onboarding walks a web developer through. It stops being fine the moment that code is going to ship: a key in anything you distribute is extractable by whoever holds the app, and keys don't expire, so a leak lasts until the key is revoked. Before shipping, move clients onto `authUrl`/`authCallback` per the Rules above, with the key held by the server that mints tokens. Say this when you set a key up this way — don't leave the user to discover the boundary later.
 
 ---
 

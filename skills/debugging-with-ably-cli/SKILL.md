@@ -141,6 +141,8 @@ Don't reach for `ably auth keys current` as the default: it resolves only once a
 
 **Putting a key into a project:** write it to `.env` and make sure `.env` is listed in `.gitignore` first. Never inline a key in source, and never commit one.
 
+A key in `.env` is a **getting-started and local-debugging** pattern. It is fine for proving something works — including from a browser or mobile app, which is what Ably's onboarding walks a web developer through — and it is not what ships. Production clients authenticate with `authUrl`/`authCallback` against a server that holds the key; see the `using-ably` skill's Authentication section. Say so when you set a key up this way.
+
 If no credentials are available, ask the user to run `ably login` (or `npx @ably/cli init`) to authenticate, or to check that their Ably environment variables are set (e.g. `ABLY_API_KEY`).
 
 ---
