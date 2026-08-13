@@ -113,7 +113,7 @@ Spaces issues (@ably/spaces)
 
 ## 3. CLI Authentication
 
-The CLI needs credentials. Two approaches:
+The CLI needs credentials. Three approaches:
 
 **Credentials from the project (quick, no login):**
 Set `ABLY_API_KEY` as an environment variable. Find the key from the project's environment files and export it (e.g. `export ABLY_API_KEY=...`). Alternatively, if you have a token (e.g., from the app's auth server), use `ABLY_TOKEN` instead. If the key is for a production app, note this to the user before using it.
@@ -121,7 +121,29 @@ Set `ABLY_API_KEY` as an environment variable. Find the key from the project's e
 **Log in to the CLI (for extended debugging or account-level commands):**
 `ably login` opens a browser for OAuth. Once logged in, use `ably apps list` and `ably apps switch` to target the right app, and `ably auth keys list` to see available keys and their capabilities.
 
-If no credentials are available, ask the user to check that their Ably environment variables are set (e.g. `ABLY_API_KEY`) or to run `ably login` to authenticate.
+**Take a key _from_ a logged-in CLI (when the project has none yet):**
+A logged-in CLI is a source of keys, not only a consumer of one. This is the path when scaffolding a new project, where there is no `.env` to read.
+
+```bash
+# A specific key, addressed by its public name — the command carries no secret
+ably auth keys get "APP_ID.KEY_ID" --json | head -1 | jq -r .key.value
+
+# Or list an app's keys and choose one; check `capability` before picking
+ably auth keys list --app APP_ID --json | head -1 | jq -r '.keys[] | "\(.keyName)\t\(.name)"'
+```
+
+Two things to know about that output:
+
+- **`--json` is JSON Lines, not a single document** — a `result` line followed by a `status` line. Read the first line (`head -1`, or `jq -s '.[0]'`). Running `jq -r .value` over the raw stream returns `null`, and the SDK then fails with an unhelpful `invalid key parameter`.
+- **The key is at `.key.value`** for `keys get`/`keys current`, and at `.keys[].key` for `keys list`.
+
+Don't reach for `ably auth keys current` as the default: it resolves only once a key has been explicitly selected for that app, and `ably login` auto-selects one only when the app has exactly one key. Apps are commonly provisioned with more than one, so `current` is often unset — or set to whichever key the user happened to pick, which may not have the capability your code needs.
+
+**Putting a key into a project:** write it to `.env` and make sure `.env` is listed in `.gitignore` first. Never inline a key in source, and never commit one.
+
+A key in `.env` is a **getting-started and local-debugging** pattern. It is fine for proving something works — including from a browser or mobile app, which is what Ably's onboarding walks a web developer through — and it is not what ships. Production clients authenticate with `authUrl`/`authCallback` against a server that holds the key; see the `using-ably` skill's Authentication section. Say so when you set a key up this way.
+
+If no credentials are available, ask the user to run `ably login` (or `npx @ably/cli init`) to authenticate, or to check that their Ably environment variables are set (e.g. `ABLY_API_KEY`).
 
 ---
 
