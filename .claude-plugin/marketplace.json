@@ -13,12 +13,13 @@
 	"plugins": [
 		{
 			"name": "ably",
-			"description": "Expert knowledge for building and debugging with Ably — SDK patterns, auth, product selection verified against live docs, and CLI-powered diagnostics for connection, messaging, and presence issues.",
+			"description": "Expert knowledge for building and debugging with Ably — SDK patterns, auth, product selection verified against live docs, CLI-powered diagnostics for connection, messaging, and presence issues, and durable AI agents on Temporal with AI Transport.",
 			"source": "./",
 			"strict": false,
 			"skills": [
 				"./skills/using-ably",
-				"./skills/debugging-with-ably-cli"
+				"./skills/debugging-with-ably-cli",
+				"./skills/using-ably-with-temporal"
 			]
 		}
 	]
